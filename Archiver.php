@@ -10,8 +10,14 @@ class Archiver
     {
         $text = $this->getFileText($filename);
         $encoder = new ArithmeticEncoder;
-        $encoded = $encoder->encode($text);
+        $encoded = $encoder->encode($text . Archiver::EOFChar);
         echo "Encoded: " . $encoded . "\n";
+    }
+
+    function extract($filename){
+        $text = $this->getFileText($filename);
+        $decoder = new ArithmeticDecoder;
+//        $decoder->decode($text, );
     }
 
     //    ---
@@ -21,15 +27,12 @@ class Archiver
         $text = '';
 
         $file = fopen($filename, 'r');
-        while (feof($file)) {
+
+        while (!feof($file)) {
             $text .= fgets($file);
-            echo $text;
         }
 
-
         fclose($file);
-
-        $text .= Archiver::EOFChar;
 
         return $text;
     }
