@@ -2,22 +2,25 @@
 
 class ArithmeticEncoder
 {
+    const EOFChar = '^Z';
+
     public $probabilityTable;
 
-    function __construct($text)
+    function encode($text)
     {
+        echo "Encoding " . $text . "\n";
         $this->buildProbabilityTable($text);
         $this->probabilityTableOutput();
 
-        $encoded = $this->encode($text);
-        echo "Encoded: " . $encoded . "\n";
+        return $this->encodeFunc($text);
     }
 
-//    ---
+    //---
 
     function buildProbabilityTable($text)
     {
-        for ($i = 0, $len = strlen($text); $i < $len; $i++) {
+        $len = strlen($text) - strlen(Archiver::EOFChar);
+        for ($i = 0; $i < $len; $i++) {
             $symbol = strval($text[$i]);
 
             if (isset($this->probabilityTable[$symbol])) {
@@ -26,6 +29,8 @@ class ArithmeticEncoder
                 $this->probabilityTable[$symbol] = 1;
             }
         }
+
+        $this->probabilityTable[ArithmeticEncoder::EOFChar] = 1;
 
         $num = strlen($text);
         foreach ($this->probabilityTable as $key => $val) {
@@ -49,29 +54,22 @@ class ArithmeticEncoder
         }
     }
 
-//    ----
+    //    ----
 
-    function encode($text)
+    function encodeFunc($text)
     {
-        echo " =-------=\n";
-
-        $intervalEnd = $this->findInterval($text[0], $intervalStart);
-        $encoded = $intervalEnd;
-
-        echo "Symb Prev Int Encoded \n";
+        $symbolIntEnd = $this->findInterval($text[0], $symbolIntStart);
+        $oldStart = $symbolIntStart;
+        $encoded = $symbolIntEnd;
 
         for ($i = 1, $num = strlen($text); $i < $num; $i++) {
             $symbol = $text[$i];
+            $symbolIntEnd = $this->findInterval($symbol, $intervalStart);
 
-            $oldStart = $intervalStart;
-            $oldInterval = $intervalEnd - $intervalStart;
+            $oldLen = $encoded - $oldStart;
 
-            $intervalEnd = $this->findInterval($symbol, $intervalStart);
-            $encoded = $oldStart + $oldInterval * $intervalEnd;
-
-            echo $symbol . " ";
-            echo $intervalEnd . " ";
-            echo $encoded . "\n";
+            $encoded = $oldStart + $oldLen * $symbolIntEnd;
+            $oldStart = $oldStart + $oldLen * $intervalStart;
         }
 
         return $encoded;
@@ -110,6 +108,8 @@ class ArithmeticEncoder
         foreach ($arr as $key => $val) {
             return $key;
         }
+
+        return false;
     }
 
 }
@@ -117,14 +117,14 @@ class ArithmeticEncoder
 class ArithmeticDecoder
 {
 
-//    ---
-
-    function decode($encoded, $table)
+    function decodeFunc($encoded, $table)
     {
 
         echo "---------\n";
         $decoded = '';
         $intervalEnd = 1;
+
+
 
         for ($i = 0; $i < 7; $i++) {
             $encoded /= $intervalEnd;
@@ -158,4 +158,3 @@ class ArithmeticDecoder
         throw new ErrorException('Incorrect encoded message');
     }
 }
-
