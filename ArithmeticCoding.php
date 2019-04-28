@@ -2,8 +2,6 @@
 
 class ArithmeticEncoder
 {
-    const EOFChar = '^Z';
-
     /**
      * [char => {float} number]
      */
@@ -18,9 +16,7 @@ class ArithmeticEncoder
         $code = $this->encodeFunc($text);
         $tableString = $this->tableToString();
 
-        echo "Encoded: " . $code . "\n";
-        return '0.' . $code;
-//            . "," . $tableString;
+        return $code . "," . $tableString;
     }
 
     //---
@@ -38,7 +34,7 @@ class ArithmeticEncoder
             }
         }
 
-        $this->probabilityTable[ArithmeticEncoder::EOFChar] = 1;
+        $this->probabilityTable[Archiver::EOFChar] = 1;
 
         $num = $len + 1;
         foreach ($this->probabilityTable as $key => $val) {
@@ -105,32 +101,39 @@ class ArithmeticEncoder
      */
     function encodeFunc($text)
     {
+        // encoding first symbol
         $this->findInterval($text[0], $symbolIntStart, $symbolIntEnd);
-        $oldStart = $symbolIntStart;
         $encoded = [$symbolIntStart, $symbolIntEnd];
-
-        echo "Sym Start Len Enc\n";
 
         for ($i = 1, $num = strlen($text) - strlen(Archiver::EOFChar); $i < $num; $i++) {
             $symbol = $text[$i];
+
             $this->findInterval($symbol, $symbolIntStart, $symbolIntEnd);
-            $oldLen = $encoded - $oldStart;
+            $oldLen = $encoded[1] - $encoded[0];
 
-            $encoded = $oldStart + $oldLen * $symbolIntEnd;
-
-            echo $symbol . " " . $oldStart . " " . $oldLen . " " . $encoded . "\n";
-            $oldStart = $oldStart + $oldLen * $symbolIntStart;
+            $encoded[1] = $encoded[0] + $oldLen * $symbolIntEnd; // new code interval end
+            $encoded[0] = $encoded[0] + $oldLen * $symbolIntStart; // code interval start
         }
 
         // encoding EOF character
         $symbol = Archiver::EOFChar;
         $this->findInterval($symbol, $symbolIntStart, $symbolIntEnd);
-        $oldLen = $encoded - $oldStart;
-        $encoded = $oldStart + $oldLen * $symbolIntEnd;
+        $oldLen = $encoded[1] - $encoded[0];
 
-        return substr($encoded, 2);
+        $encoded[1] = $encoded[0] + $oldLen * $symbolIntEnd;
+        $encoded[0] = $encoded[0] + $oldLen * $symbolIntStart;
+
+        $result = $encoded[0] + ($encoded[1] - $encoded[0]) / 6 * 2;
+
+        return substr($encoded[0], 2);
     }
 
+    /**
+     * Function gets symbol probability interval [$intervalStart, $intervalEnd]
+     * @param {char} $symbol
+     * @param {float} $intervalStart
+     * @param {float} $intervalEnd
+     */
     function findInterval($symbol, &$intervalStart, &$intervalEnd)
     {
         $counter = 0;
@@ -165,15 +168,19 @@ class ArithmeticDecoder
 {
     function decode($code, $table)
     {
-        echo "---------\n";
-        echo $code;
+//        echo "---------\n";
+//        echo $code;
         $decoded = $this->findSymbol($code, $table, $intervalStart, $intervalEnd);
 
-        echo "\nS  Cod  St End \n";
-        echo $decoded . "\n";
+//        echo "\nS  Cod  St End \n";
+//        echo $decoded . "\n";
 
         for (; ;) {
-            $code = ($code - $intervalStart) / ($intervalEnd - $intervalStart);
+            $codeInt = number_format($code - $intervalStart, 15);
+            $codeAll = number_format($intervalEnd - $intervalStart, 15);
+//            echo $codeInt . " " . $codeAll . " ";
+//            echo ($codeInt / $codeAll) . " ";
+            $code = number_format($codeInt / $codeAll, 15);
             $symbol = $this->findSymbol($code, $table, $intervalStart, $intervalEnd);
 
             if ($symbol == Archiver::EOFChar) {
@@ -182,10 +189,11 @@ class ArithmeticDecoder
 
             $decoded .= $symbol;
 
-            echo $symbol . " " . $code . " " . $intervalStart . " " . $intervalEnd . "\n";
+//            echo $symbol . " " . $code . " " . $intervalStart . " " . $intervalEnd . "\n";
         }
 
-        echo "Decoded: " . $decoded . "\n";
+//        echo "Decoded: " . $decoded . "\n";
+//        echo (0.32 / 0.4) . " \n";
         return $decoded;
     }
 

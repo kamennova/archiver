@@ -60,7 +60,7 @@ class Archiver
     {
         $probabilityTable = [];
 
-        $file = fopen($filename, 'r');
+        $file = fopen($filename, 'r') or die('Could not open file :/');
 
         $numStr = fgets($file);
 
@@ -78,7 +78,7 @@ class Archiver
         array_push($symbols, Archiver::EOFChar);
 
         for ($i = 0, $num = count($numbers); $i < $num; $i++) {
-            $table[$symbols[$i]] = $numbers[$i];
+            $probabilityTable[$symbols[$i]] = $numbers[$i];
         }
 
         return $probabilityTable;
