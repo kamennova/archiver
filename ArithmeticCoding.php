@@ -4,6 +4,9 @@ class ArithmeticEncoder
 {
     const EOFChar = '^Z';
 
+    /**
+     * [char => {float} number]
+     */
     public $probabilityTable;
 
     function encode($text)
@@ -12,7 +15,12 @@ class ArithmeticEncoder
         $this->buildProbabilityTable($text);
         $this->probabilityTableOutput();
 
-        return $this->encodeFunc($text);
+        $code = $this->encodeFunc($text);
+        $tableString = $this->tableToString();
+
+        echo "Encoded: " . $code . "\n";
+        return '0.' . $code;
+//            . "," . $tableString;
     }
 
     //---
@@ -32,7 +40,7 @@ class ArithmeticEncoder
 
         $this->probabilityTable[ArithmeticEncoder::EOFChar] = 1;
 
-        $num = strlen($text);
+        $num = $len + 1;
         foreach ($this->probabilityTable as $key => $val) {
             $this->probabilityTable[$key] = $val / $num;
         }
@@ -47,6 +55,31 @@ class ArithmeticEncoder
         }
     }
 
+    /**
+     * Function for converting probability table into lightweight format
+     * for future decoding
+     *
+     * @format:
+     * "prob_num, prob_num, .... /n
+     * symbol, symbol, ... /n"
+     *
+     * @return string
+     */
+    function tableToString()
+    {
+        $numStr = '';
+        $symbolStr = '';
+        foreach ($this->probabilityTable as $key => $val) {
+            $numStr .= substr($val, 2) . ',';
+            $symbolStr .= $key . ",";
+        }
+
+        $numStr = substr($numStr, 0, strlen($numStr) - 2) . "\n";
+        $symbolStr = substr($symbolStr, 0, strlen($symbolStr) - strlen(Archiver::EOFChar) - 2) . "\n";
+
+        return $numStr . $symbolStr;
+    }
+
     function probabilityTableOutput()
     {
         foreach ($this->probabilityTable as $key => $val) {
@@ -56,29 +89,52 @@ class ArithmeticEncoder
 
     //    ----
 
+    /**
+     * Example: encoding "baca" . "^Z"
+     * Probability table: a: 0 -> 0.4, b: 0.4 -> 0.6, c: 0.6 -> 0.8, ^Z: 0.8 -> 1
+     *
+     * 1) b: 0.4->0.6
+     * 2) a: 0.4 + 0.2*(0->0.4) = 0.4 -> 0.48
+     * 3) c: 0.4 + 0.08*(0.6->0.8) = 0.448 -> 0.464
+     * 4) a: 0.448 + 0.016*(0->0.4) = 0.448 -> 0.4544
+     * 5) ^Z: 0.448 + 0.0064*(0.8-> 0.8(case1)) = 0.4992 -> 0.45376
+     *
+     * @param $text
+     * @return string
+     *
+     */
     function encodeFunc($text)
     {
-        $symbolIntEnd = $this->findInterval($text[0], $symbolIntStart);
+        $this->findInterval($text[0], $symbolIntStart, $symbolIntEnd);
         $oldStart = $symbolIntStart;
-        $encoded = $symbolIntEnd;
+        $encoded = [$symbolIntStart, $symbolIntEnd];
 
-        for ($i = 1, $num = strlen($text); $i < $num; $i++) {
+        echo "Sym Start Len Enc\n";
+
+        for ($i = 1, $num = strlen($text) - strlen(Archiver::EOFChar); $i < $num; $i++) {
             $symbol = $text[$i];
-            $symbolIntEnd = $this->findInterval($symbol, $intervalStart);
-
+            $this->findInterval($symbol, $symbolIntStart, $symbolIntEnd);
             $oldLen = $encoded - $oldStart;
 
             $encoded = $oldStart + $oldLen * $symbolIntEnd;
-            $oldStart = $oldStart + $oldLen * $intervalStart;
+
+            echo $symbol . " " . $oldStart . " " . $oldLen . " " . $encoded . "\n";
+            $oldStart = $oldStart + $oldLen * $symbolIntStart;
         }
 
-        return $encoded;
+        // encoding EOF character
+        $symbol = Archiver::EOFChar;
+        $this->findInterval($symbol, $symbolIntStart, $symbolIntEnd);
+        $oldLen = $encoded - $oldStart;
+        $encoded = $oldStart + $oldLen * $symbolIntEnd;
+
+        return substr($encoded, 2);
     }
 
-    function findInterval($symbol, &$intervalStart)
+    function findInterval($symbol, &$intervalStart, &$intervalEnd)
     {
         $counter = 0;
-        $prevKey = $this->arr_key_first($this->probabilityTable);
+        $prevKey = arr_key_first($this->probabilityTable);
 
         foreach ($this->probabilityTable as $key => $val) {
             if ($symbol == $key) {
@@ -90,71 +146,88 @@ class ArithmeticEncoder
                 $intervalStart = $prevVal;
 
                 if ($val == 1) {
-                    return $prevVal + ($val - $prevVal) / 2;
+                    $intervalEnd = $prevVal + ($val - $prevVal) / 2;
                 }
 
-                return $val;
+                $intervalEnd = $val;
+                return;
             }
 
             $counter++;
             $prevKey = $key;
         }
 
-        return 0;
+        return;
     }
-
-    function arr_key_first($arr)
-    {
-        foreach ($arr as $key => $val) {
-            return $key;
-        }
-
-        return false;
-    }
-
 }
 
 class ArithmeticDecoder
 {
-
-    function decodeFunc($encoded, $table)
+    function decode($code, $table)
     {
-
         echo "---------\n";
-        $decoded = '';
-        $intervalEnd = 1;
+        echo $code;
+        $decoded = $this->findSymbol($code, $table, $intervalStart, $intervalEnd);
 
+        echo "\nS  Cod  St End \n";
+        echo $decoded . "\n";
 
+        for (; ;) {
+            $code = ($code - $intervalStart) / ($intervalEnd - $intervalStart);
+            $symbol = $this->findSymbol($code, $table, $intervalStart, $intervalEnd);
 
-        for ($i = 0; $i < 7; $i++) {
-            $encoded /= $intervalEnd;
-            echo $intervalEnd . " ";
-            echo $encoded . " ";
-            $symbol = $this->findSymbol($encoded, $table, $intervalEnd);
-            echo $symbol . "\n";
+            if ($symbol == Archiver::EOFChar) {
+                break;
+            }
+
             $decoded .= $symbol;
+
+            echo $symbol . " " . $code . " " . $intervalStart . " " . $intervalEnd . "\n";
         }
 
+        echo "Decoded: " . $decoded . "\n";
         return $decoded;
     }
 
     /**
      * @param $num
      * @param $table
+     * @param $intervalStart
      * @param $intervalEnd
      * @return string
-     * @throws ErrorException
      */
-    function findSymbol($num, $table, &$intervalEnd)
+    function findSymbol($num, $table, &$intervalStart, &$intervalEnd)
     {
-        $prevKey = 0;
+        $counter = 0;
+        $prevKey = arr_key_first($table);
+
         foreach ($table as $key => $val) {
             if ($num < $val) {
+                if ($counter == 0) {
+                    $intervalStart = 0;
+                } else {
+                    $intervalStart = $table[$prevKey];
+                }
+
                 $intervalEnd = $val;
                 return $key;
             }
+
+            $counter++;
+            $prevKey = $key;
         }
 
-        throw new ErrorException('Incorrect encoded message');
+        return false;
     }
+}
+
+// ---
+
+function arr_key_first($arr)
+{
+    foreach ($arr as $key => $val) {
+        return $key;
+    }
+
+    return false;
 }
