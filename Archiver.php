@@ -6,18 +6,37 @@ class Archiver
 {
     const EOFChar = '^Z';
 
-    function compress($filename)
+    public $code;
+
+
+    function compress($input, $output)
     {
-        $text = $this->getFileText($filename);
+        $text = $this->getFileText($input);
         $encoder = new ArithmeticEncoder;
         $encoded = $encoder->encode($text . Archiver::EOFChar);
+
         echo "Encoded: " . $encoded . "\n";
+
+        $this->newDataFile($output, $encoded);
     }
 
-    function extract($filename){
-        $text = $this->getFileText($filename);
+    function extract($compressed, $output)
+    {
+        $table = $this->getProbabilityTable($compressed);
         $decoder = new ArithmeticDecoder;
-//        $decoder->decode($text, );
+        $decoded = $decoder->decode($this->code, $table);
+
+        echo "Decoded: " . $decoded . "\n";
+
+        $this->newDataFile($output, $decoded);
+    }
+
+    function newDataFile($filename, $data)
+    {
+        $newFile = $filename;
+        $handle = fopen($newFile, 'w') or die('Could not open file :/');
+        fwrite($handle, $data);
+        fclose($handle);
     }
 
     //    ---
@@ -36,4 +55,38 @@ class Archiver
 
         return $text;
     }
+
+    function getProbabilityTable($filename)
+    {
+        $probabilityTable = [];
+
+        $file = fopen($filename, 'r');
+
+        $numStr = fgets($file);
+
+        $symbolStr = fgets($file);
+        if (!feof($file)) {
+            $symbolStr .= fgets($file);
+        }
+        fclose($file);
+
+        $numbers = array_map('get_float_num', explode(',', $numStr));
+        array_push($numbers, 1);
+        $this->code = array_shift($numbers);
+
+        $symbols = explode(',', substr($symbolStr, 0, strlen($symbolStr) - 1));
+        array_push($symbols, Archiver::EOFChar);
+
+        for ($i = 0, $num = count($numbers); $i < $num; $i++) {
+            $table[$symbols[$i]] = $numbers[$i];
+        }
+
+        return $probabilityTable;
+    }
+}
+
+function get_float_num($i)
+{
+    echo '0.' . $i . "\n";
+    return floatval('0.' . $i);
 }
