@@ -8,7 +8,6 @@ class Archiver
 
     public $code;
 
-
     function compress($input, $output)
     {
         $text = $this->getFileText($input);
@@ -56,6 +55,14 @@ class Archiver
         return $text;
     }
 
+    /**
+     * Func builds symbols probability table from compressed file data with format:
+     * code,symbol1_frequency,symbol2_frequency ... /n
+     * symbol1,symbol2,...
+     *
+     * @param $filename
+     * @return array
+     */
     function getProbabilityTable($filename)
     {
         $probabilityTable = [];
@@ -68,11 +75,14 @@ class Archiver
         if (!feof($file)) {
             $symbolStr .= fgets($file);
         }
+
         fclose($file);
 
-        $numbers = array_map('get_float_num', explode(',', $numStr));
+        $numbers = explode(',', $numStr);
+        $this->code = floatval(array_shift($numbers));
+
+        $numbers = array_map('get_float_num', $numbers);
         array_push($numbers, 1);
-        $this->code = array_shift($numbers);
 
         $symbols = explode(',', substr($symbolStr, 0, strlen($symbolStr) - 1));
         array_push($symbols, Archiver::EOFChar);

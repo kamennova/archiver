@@ -6,6 +6,7 @@ class ArithmeticEncoder
      * [char => {float} number]
      */
     public $probabilityTable;
+    static public $intervalMax = 1;
 
     function encode($text)
     {
@@ -103,7 +104,7 @@ class ArithmeticEncoder
     {
         // encoding first symbol
         $this->findInterval($text[0], $symbolIntStart, $symbolIntEnd);
-        $encoded = [$symbolIntStart, $symbolIntEnd];
+        $encoded = [$symbolIntStart * ArithmeticEncoder::$intervalMax, $symbolIntEnd * ArithmeticEncoder::$intervalMax];
 
         for ($i = 1, $num = strlen($text) - strlen(Archiver::EOFChar); $i < $num; $i++) {
             $symbol = $text[$i];
@@ -123,9 +124,31 @@ class ArithmeticEncoder
         $encoded[1] = $encoded[0] + $oldLen * $symbolIntEnd;
         $encoded[0] = $encoded[0] + $oldLen * $symbolIntStart;
 
-        $result = $encoded[0] + ($encoded[1] - $encoded[0]) / 6 * 2;
+        echo $encoded[0] . "\n";
+        echo $encoded[1] . "\n";
+        $result = $this->get_shorter($encoded[0], $encoded[1]);
 
-        return substr($encoded[0], 2);
+        echo $result . "\n";
+
+        return $result;
+    }
+
+    /**
+     * Returns the shortest number from given range
+     * e.g. get_shorter(2.3456, 3.4445) = 3
+     *
+     * @param $min
+     * @param $max
+     * @return float|int
+     */
+    function get_shorter($min, $max)
+    {
+        $floored = floor($min);
+        if ((floor($max) - $floored >= 1) && $max !== $floored) {
+            return $floored + 1;
+        }
+
+        return $min + ($max - $min) / 6 * 2;
     }
 
     /**
@@ -149,7 +172,7 @@ class ArithmeticEncoder
                 $intervalStart = $prevVal;
 
                 if ($val == 1) {
-                    $intervalEnd = $prevVal + ($val - $prevVal) / 2;
+                    $intervalEnd = ($prevVal + ($val - $prevVal) / 2);
                 }
 
                 $intervalEnd = $val;
@@ -168,19 +191,23 @@ class ArithmeticDecoder
 {
     function decode($code, $table)
     {
-//        echo "---------\n";
-//        echo $code;
+        var_dump($table);
+        echo "---------\n";
+
         $decoded = $this->findSymbol($code, $table, $intervalStart, $intervalEnd);
 
-//        echo "\nS  Cod  St End \n";
-//        echo $decoded . "\n";
+        echo "\nS  Cod  St End \n";
+        var_dump($decoded);
+        echo $code . ' ' . $intervalStart . ' ' . $intervalEnd . "\n";
 
         for (; ;) {
-            $codeInt = number_format($code - $intervalStart, 15);
-            $codeAll = number_format($intervalEnd - $intervalStart, 15);
-//            echo $codeInt . " " . $codeAll . " ";
-//            echo ($codeInt / $codeAll) . " ";
-            $code = number_format($codeInt / $codeAll, 15);
+            $codeInt = $code / ArithmeticEncoder::$intervalMax - $intervalStart;
+            $codeAll = $intervalEnd - $intervalStart;
+
+            echo $codeInt . " " . $codeAll . " ";
+            echo ($codeInt / $codeAll) . " ";
+
+            $code = $codeInt / $codeAll * ArithmeticEncoder::$intervalMax;
             $symbol = $this->findSymbol($code, $table, $intervalStart, $intervalEnd);
 
             if ($symbol == Archiver::EOFChar) {
@@ -189,15 +216,16 @@ class ArithmeticDecoder
 
             $decoded .= $symbol;
 
-//            echo $symbol . " " . $code . " " . $intervalStart . " " . $intervalEnd . "\n";
+            echo $symbol . "\n " . $code . " " . $intervalStart . " " . $intervalEnd . "\n";
         }
 
-//        echo "Decoded: " . $decoded . "\n";
-//        echo (0.32 / 0.4) . " \n";
         return $decoded;
     }
 
     /**
+     * Function finds interval $num belongs to, writes interval edges to
+     * intervalStart, intervalEnd, returns the symbol from probability table $table
+     *
      * @param $num
      * @param $table
      * @param $intervalStart
@@ -210,7 +238,7 @@ class ArithmeticDecoder
         $prevKey = arr_key_first($table);
 
         foreach ($table as $key => $val) {
-            if ($num < $val) {
+            if ($num / ArithmeticEncoder::$intervalMax < $val) {
                 if ($counter == 0) {
                     $intervalStart = 0;
                 } else {
@@ -231,6 +259,11 @@ class ArithmeticDecoder
 
 // ---
 
+/**
+ * Gets first key of associative array
+ * @param $arr
+ * @return bool|int|string
+ */
 function arr_key_first($arr)
 {
     foreach ($arr as $key => $val) {
