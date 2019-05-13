@@ -78,11 +78,11 @@ class Archiver
 
         fclose($file);
 
-        $numbers = explode(',', $numStr);
+        $numbers = explode(',', substr($numStr, 0, strlen($numStr)-1));
         $this->code = floatval(array_shift($numbers));
 
-        $numbers = array_map('get_float_num', $numbers);
-        array_push($numbers, 1);
+//        $numbers = array_map('get_float_num', $numbers);
+        array_push($numbers, ArithmeticEncoder::$intervalMax);
 
         $symbols = explode(',', substr($symbolStr, 0, strlen($symbolStr) - 1));
         array_push($symbols, Archiver::EOFChar);

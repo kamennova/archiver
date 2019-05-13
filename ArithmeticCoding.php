@@ -39,7 +39,7 @@ class ArithmeticEncoder
 
         $num = $len + 1;
         foreach ($this->probabilityTable as $key => $val) {
-            $this->probabilityTable[$key] = $val / $num;
+            $this->probabilityTable[$key] = $val / $num * ArithmeticEncoder::$intervalMax;
         }
 
         // sort DESC
@@ -67,11 +67,13 @@ class ArithmeticEncoder
         $numStr = '';
         $symbolStr = '';
         foreach ($this->probabilityTable as $key => $val) {
-            $numStr .= substr($val, 2) . ',';
+            $numStr .= $val . ',';
             $symbolStr .= $key . ",";
         }
 
-        $numStr = substr($numStr, 0, strlen($numStr) - 2) . "\n";
+        /* deleting last number and commas before & after it
+         (last number will always be ArithmeticEncoder::intervalMax) */
+        $numStr = substr($numStr, 0, strlen($numStr) - 2 - strlen(ArithmeticEncoder::$intervalMax)) . "\n";
         $symbolStr = substr($symbolStr, 0, strlen($symbolStr) - strlen(Archiver::EOFChar) - 2) . "\n";
 
         return $numStr . $symbolStr;
@@ -104,17 +106,20 @@ class ArithmeticEncoder
     {
         // encoding first symbol
         $this->findInterval($text[0], $symbolIntStart, $symbolIntEnd);
-        $encoded = [$symbolIntStart * ArithmeticEncoder::$intervalMax, $symbolIntEnd * ArithmeticEncoder::$intervalMax];
+        $encoded = [$symbolIntStart, $symbolIntEnd];
 
         for ($i = 1, $num = strlen($text) - strlen(Archiver::EOFChar); $i < $num; $i++) {
             $symbol = $text[$i];
 
             $this->findInterval($symbol, $symbolIntStart, $symbolIntEnd);
-            $oldLen = $encoded[1] - $encoded[0];
+            $oldLen = ($encoded[1] - $encoded[0]) / ArithmeticEncoder::$intervalMax;
 
             $encoded[1] = $encoded[0] + $oldLen * $symbolIntEnd; // new code interval end
             $encoded[0] = $encoded[0] + $oldLen * $symbolIntStart; // code interval start
+
+            echo $encoded[1] . ' ' . $encoded[0] . "\n";
         }
+        echo "Endl\n";
 
         // encoding EOF character
         $symbol = Archiver::EOFChar;
@@ -200,23 +205,25 @@ class ArithmeticDecoder
         var_dump($decoded);
         echo $code . ' ' . $intervalStart . ' ' . $intervalEnd . "\n";
 
-        for (; ;) {
-            $codeInt = $code / ArithmeticEncoder::$intervalMax - $intervalStart;
+        for ($i = 0; $i < 12; $i++) {
+            $codeInt = $code - $intervalStart;
+            echo "intervals: "  . $intervalEnd . ' ' . $intervalStart . "\n";
             $codeAll = $intervalEnd - $intervalStart;
 
-            echo $codeInt . " " . $codeAll . " ";
-            echo ($codeInt / $codeAll) . " ";
+//            echo $codeInt . " " . $codeAll . " ";
+//            echo ($codeInt / $codeAll) . " ";
 
             $code = $codeInt / $codeAll * ArithmeticEncoder::$intervalMax;
             $symbol = $this->findSymbol($code, $table, $intervalStart, $intervalEnd);
 
             if ($symbol == Archiver::EOFChar) {
+                echo 'end';
                 break;
             }
 
             $decoded .= $symbol;
 
-            echo $symbol . "\n " . $code . " " . $intervalStart . " " . $intervalEnd . "\n";
+            echo $symbol . "\n " . $code ."\n";
         }
 
         return $decoded;
@@ -238,7 +245,7 @@ class ArithmeticDecoder
         $prevKey = arr_key_first($table);
 
         foreach ($table as $key => $val) {
-            if ($num / ArithmeticEncoder::$intervalMax < $val) {
+            if ($num < $val) {
                 if ($counter == 0) {
                     $intervalStart = 0;
                 } else {
